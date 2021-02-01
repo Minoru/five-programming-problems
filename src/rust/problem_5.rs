@@ -7,71 +7,101 @@
 > 100.
 */
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum Operator {
+use std::fmt::{Formatter, Display};
+
+#[derive(Clone, Copy)]
+enum Operation {
     Plus,
-    Minus,
-    Nothing
+    Minus
 }
 
-/// Given an array of operators, change the last one to the "next state", and if necessary, update
-/// the other ones too.
-fn advance(operators: &mut [Operator]) {
-    let last = operators.len() - 1;
-    match operators[last] {
-        Operator::Plus => {
-            operators[last] = Operator::Minus;
-        },
-        Operator::Minus => {
-            operators[last] = Operator::Nothing;
-        },
-        Operator::Nothing => {
-            operators[last] = Operator::Plus;
-            if operators.len() > 1 {
-                advance(&mut operators[..last]);
+#[derive(Clone)]
+enum Tree {
+    Op {
+        op: Operation,
+        lhs: Box<Tree>,
+        rhs: i32,
+    },
+    Number {
+        number: i32
+    },
+}
+
+impl Display for Tree {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            Tree::Number { number } => { write!(f, "{}", number)?; },
+            Tree::Op { op, lhs, rhs } => {
+                write!(f, "{}", lhs)?;
+                match op {
+                    Operation::Plus => {
+                        write!(f, " + ")?;
+                    },
+
+                    Operation::Minus => {
+                        write!(f, " - ")?;
+                    },
+                }
+                write!(f, "{}", rhs)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn evaluate(tree: &Tree) -> i32 {
+    match tree {
+        Tree::Number { number } => *number,
+
+        Tree::Op { op, lhs, rhs } => {
+            let lhs_value = evaluate(&lhs);
+            match op {
+                Operation::Plus => {
+                    lhs_value + rhs
+                },
+
+                Operation::Minus => {
+                    lhs_value - rhs
+                },
             }
         },
     }
 }
 
-/// Given an array of operators, calculate the sum of digits with these operators applied.
-fn evaluate(operators: &[Operator]) -> i32 {
-    let mut number = 0;
-    for i in (0..operators.len()).rev() {
-        if operators[i] == Operator::Nothing {
-            let mut num = number.to_string();
-            num.prepend(&i.to_string());
-            number = num.parse().unwrap();
-        }
-    }
-}
-
-fn to_string(operators: &[Operator]) -> String {
-    let mut result = String::new();
-    for (n, op) in [1, 2, 3, 4, 5, 6, 7, 8, 9].iter().zip(operators) {
-        result.push_str(&n.to_string());
-        match op {
-            Operator::Plus => result.push('+'),
-            Operator::Minus => result.push('-'),
-            Operator::Nothing => {},
-        }
-    }
-    result.push('9');
-    result
-}
-
 fn main() {
-    let mut state = [Operator::Plus; 8];
-    loop {
-        if evaluate(&state) == 100 {
-            println!("{}  =  {}", to_string(&state), evaluate(&state));
+    let mut trees = vec![
+        Tree::Number {
+            number: 1,
+        },
+    ];
+    for digit in 2..=9 {
+        let mut new_trees = vec![];
+
+        for current_tree in trees {
+            new_trees.push(Tree::Op { op: Operation::Plus, lhs: Box::new(current_tree.clone()), rhs: digit});
+            new_trees.push(Tree::Op { op: Operation::Minus, lhs: Box::new(current_tree.clone()), rhs: digit});
+
+            let mut new_tree = current_tree;
+            match &mut new_tree {
+                Tree::Op { rhs, ..} => {
+                    *rhs *= 10;
+                    *rhs += digit;
+                },
+                Tree::Number { number } => {
+                    *number *= 10;
+                    *number += digit;
+                },
+            }
+            new_trees.push(new_tree);
         }
 
-        advance(&mut state);
+        trees = new_trees;
+    }
 
-        // We reached the initial state again, stop the loop.
-        if state.iter().all(|x| *x == Operator::Nothing) {
-            break;
+    for tree in trees {
+        if evaluate(&tree) == 100 {
+            println!("{}  =  100", tree);
         }
     }
 }
